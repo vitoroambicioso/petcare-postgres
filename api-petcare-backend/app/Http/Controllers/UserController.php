@@ -39,6 +39,7 @@ class UserController extends Controller
     public function create(Request $request)
     {
         if(!empty($request->all())) {
+            
             $user = new User;
             $user->name = $request->name;
             $user->email = $request->email;
@@ -90,82 +91,50 @@ class UserController extends Controller
      */
     public function getUser(Request $request, $id)
     {
-        /**
-         * verifica existencia do token
-         */
-        if(isset($request->token)) {
-            $tokenParts = explode(".", $request->token);
-            $tokenPayload = base64_decode($tokenParts[1]);
+        $tokenParts = explode(".", $request->token);  
+        $tokenPayload = base64_decode($tokenParts[1]);
+        $jwtPayload = json_decode($tokenPayload);
+
+        $tokenValid = $this->validacaoJwt($request);
+            
+        if($tokenValid == 1) {
 
             /**
-             * verifica estrutura do token jwt
+            * verifica id do token
              */
-            if (sizeof($tokenParts)==3) {
-                
-                /**
-                 * verifica o tempo de expiracao do token
-                 */
-                $expiration = Carbon::createFromTimestamp(json_decode($tokenPayload)->exp);
-                $tokenExpired = (Carbon::now()->diffInSeconds($expiration, false) < 0);
+            if($jwtPayload->id == $id) {
+                if (User::where('id', $id)->exists()) {
+                    $user = User::find($id);
 
-                if($tokenExpired==false) {
-                                
-                    $jwtSignatureValid = hash_hmac('sha256',"$tokenParts[0].$tokenParts[1]", getenv('JWT_KEY'),true);
-                    $jwtSignatureValid = base64_encode($jwtSignatureValid);
-
-                    $tokenSignature = $tokenParts[2];
-
-                    /**
-                     * verifica signature do token
-                     */
-                    if($tokenSignature == $jwtSignatureValid) {
-
-                            $tokenHeader = base64_decode($tokenParts[0]);
-                            $jwtHeader = json_decode($tokenHeader);
-
-                            $tokenPayload = base64_decode($tokenParts[1]);
-                            $jwtPayload = json_decode($tokenPayload);
-
-                            /**
-                             * verifica id do token
-                             */
-                            if($jwtPayload->id == $id) {
-                                if (User::where('id', $id)->exists()) {
-                                    $user = User::find($id);
-
-                                    return response()->json([
-                                    "user" => $user,
-                                    "exp" => "token has not expired yet"
-                                        ], 200);
-                                } else {
-                                    return response()->json([
-                                    "message" => "user not found"
-                                    ], 404);
-                                }
-                            } else {
-                                return response()->json([
-                                "message" => "id not found"
-                                ], 404);
-                            }
-                        } else {
-                            return response()->json([
-                                "message" => "invalid token"
-                                ], 403);
-                        }
+                    return response()->json([
+                        "user" => $user,
+                    ], 200);
                 } else {
                     return response()->json([
-                        "exp" => "token has expired",
-                    ], 403);
+                        "message" => "user not found"
+                    ], 404);
                 }
             } else {
                 return response()->json([
-                    "message" => "invalid token"
-                    ], 403);
-            }
-        } else {
-                return response()->json([
-                "message" => "token not found"
+                    "message" => "id not found"
                 ], 404);
+            }
+        } else if($tokenValid == 2) {
+            return response()->json([
+                "message" => "token has expired",
+            ], 403);
+        } else if($tokenValid == 3) {
+            return response()->json([
+                "message" => "invalid token",
+            ], 403);
+        } else if($tokenValid == 4){
+            return response()->json([
+                "message" => "invalid token structure"
+            ], 403);
+        } else if($tokenValid == 5){
+            return response()->json([
+                "message" => "token does not exist"
+            ], 403);
         }
     }
 
@@ -173,6 +142,7 @@ class UserController extends Controller
     {
         $users = User::get()->toJson(JSON_PRETTY_PRINT);
         return response($users, 200);
+
     }
 
     /**
@@ -184,76 +154,47 @@ class UserController extends Controller
      */
     public function edit(Request $request, $id)
     {
-        if(isset($request->token)) {
+        $tokenParts = explode(".", $request->token);  
+        $tokenPayload = base64_decode($tokenParts[1]);
+        $jwtPayload = json_decode($tokenPayload);
 
-            $tokenParts = explode(".", $request->token);
+        $tokenValid = $this->validacaoJwt($request);
             
-            $tokenHeader = base64_decode($tokenParts[0]);
-            $jwtHeader = json_decode($tokenHeader);
-            $tokenPayload = base64_decode($tokenParts[1]);
-            $jwtPayload = json_decode($tokenPayload);
-            
-            /**
-             * verifica estrutura do token jwt
-             */
-            if (sizeof($tokenParts)==3) {
-                
-                /**
-                 * verifica o tempo de expiracao do token
-                 */
-                $expiration = Carbon::createFromTimestamp(json_decode($tokenPayload)->exp);
-                $tokenExpired = (Carbon::now()->diffInSeconds($expiration, false) < 0);
-
-                if($tokenExpired==false) {
+        if($tokenValid == 1) {
                                 
-                    $jwtSignatureValid = hash_hmac('sha256',"$tokenParts[0].$tokenParts[1]", getenv('JWT_KEY'),true);
-                    $jwtSignatureValid = base64_encode($jwtSignatureValid);
+            if($jwtPayload->id == $id) {
 
-                    $tokenSignature = $tokenParts[2];
-
-                    /**
-                     * verifica signature do token
-                     */
-                    if($tokenSignature == $jwtSignatureValid) {
-                                
-                            if($jwtPayload->id == $id) {
-
-                                $user = User::find($id);
-                                $user->name = is_null($request->name) ? $User->name : $request->name;
-                                $user->password = bcrypt(is_null($request->password) ? $User->password : $request->password);
-                                $user->update();
-                    
-                                return response()->json([
-                                    "token" => "$request->token",
-                                    "message" => "records updated successfully"
-                                    ], 200);
-                            } else {
-                                return response()->json([
-                                    "message" => "id not found"
-                                    ], 403);
-                            }
-                    } else {
-                        return response()->json([
-                            "message" => "invalid token"
-                            ], 403);
-                    }
-                } else {
-                    return response()->json([
-                        "exp" => "token has expired",
-                    ], 403);
-                }
+                $user = User::find($id);
+                $user->name = is_null($request->name) ? $User->name : $request->name;
+                $user->password = bcrypt(is_null($request->password) ? $User->password : $request->password);
+                $user->update();
+                        
+                return response()->json([
+                    "token" => "$request->token",
+                    "message" => "records updated successfully"
+                ], 200);
             } else {
                 return response()->json([
-                    "message" => "invalid token structure"
+                    "message" => "id not found"
                 ], 403);
             }
-
-        } else {
+        } else if($tokenValid == 2) {
             return response()->json([
-                "message" => "you don’t have permission to access on this server"
-                ], 403);
+                "message" => "token has expired",
+            ], 403);
+        } else if($tokenValid == 3) {
+            return response()->json([
+                "message" => "invalid token",
+            ], 403);
+        } else if($tokenValid == 4){
+            return response()->json([
+                "message" => "invalid token structure"
+            ], 403);
+        } else if($tokenValid == 5){
+            return response()->json([
+                "message" => "token does not exist"
+            ], 403);
         }
-
     }
     
 
@@ -265,69 +206,42 @@ class UserController extends Controller
      */
     public function delete(Request $request, $id)
     {
-        if(isset($request->token)) {
+        $tokenParts = explode(".", $request->token);  
+        $tokenPayload = base64_decode($tokenParts[1]);
+        $jwtPayload = json_decode($tokenPayload);
 
-            $tokenParts = explode(".", $request->token);
+        $tokenValid = $this->validacaoJwt($request);
             
-            $tokenHeader = base64_decode($tokenParts[0]);
-            $jwtHeader = json_decode($tokenHeader);
-            $tokenPayload = base64_decode($tokenParts[1]);
-            $jwtPayload = json_decode($tokenPayload);
-            
-            /**
-             * verifica estrutura do token jwt
-             */
-            if (sizeof($tokenParts)==3) {
-                
-                /**
-                 * verifica o tempo de expiracao do token
-                 */
-                $expiration = Carbon::createFromTimestamp(json_decode($tokenPayload)->exp);
-                $tokenExpired = (Carbon::now()->diffInSeconds($expiration, false) < 0);
-
-                if($tokenExpired==false) {
-                                
-                    $jwtSignatureValid = hash_hmac('sha256',"$tokenParts[0].$tokenParts[1]", getenv('JWT_KEY'),true);
-                    $jwtSignatureValid = base64_encode($jwtSignatureValid);
-
-                    $tokenSignature = $tokenParts[2];
-
-                    /**
-                     * verifica signature do token
-                     */
-                    if($tokenSignature == $jwtSignatureValid) {
+        if($tokenValid == 1) {
                         
-                        if($jwtPayload->id == $id) {
-                            $user = User::find($id);
-                            $user->delete();
+            if($jwtPayload->id == $id) {
+                $user = User::find($id);
+                $user->delete();
                         
-                            return response()->json([
-                                "token" => $request->token,
-                                "message" => "records deleted"
-                                ], 202);
-                            } else {
-                                return response()->json([
-                                "message" => "id not found"
-                                ], 403);
-                            }
-                    } else {
-                        return response()->json([
-                            "message" => "invalid token"
-                        ], 403);
-                    }
-                } else {
-                    return response()->json([
-                        "exp" => "token has expired",
-                    ], 403);
-                }
+                return response()->json([
+                    "token" => $request->token,
+                    "message" => "records deleted"
+                ], 202);
             } else {
                 return response()->json([
-                    "message" => "invalid token structure"
+                    "message" => "id not found"
                 ], 403);
             }
-        } else {
+        } else if($tokenValid == 2) {
             return response()->json([
-                "message" => "you don’t have permission to access on this server"
+                "message" => "token has expired",
+            ], 403);
+        } else if($tokenValid == 3) {
+            return response()->json([
+                "message" => "invalid token",
+            ], 403);
+        } else if($tokenValid == 4){
+            return response()->json([
+                "message" => "invalid token structure"
+            ], 403);
+        } else if($tokenValid == 5){
+            return response()->json([
+                "message" => "token does not exist"
             ], 403);
         }
     }
@@ -345,7 +259,7 @@ class UserController extends Controller
         if (Auth::attempt($credentials)) {
 
             $timeNow = time();
-            $expirationTime = $timeNow + 60*60;
+            $expirationTime = $timeNow + 60;
 
             $jwtHeader = [
                 'alg' => 'HS256',
@@ -399,29 +313,38 @@ class UserController extends Controller
                 /**
                  * verifica o tempo de expiracao do token
                  */
-                $expiration = Carbon::createFromTimestamp(json_decode($tokenPayload)->exp);
-                $tokenExpired = (Carbon::now()->diffInSeconds($expiration, false) < 0);
+                if(!empty($jwtPayload->exp) && is_null($jwtPayload->id) == FALSE) {
+                    
+                    $expiration = Carbon::createFromTimestamp(json_decode($tokenPayload)->exp);
+                    $tokenExpired = (Carbon::now()->diffInSeconds($expiration, false) < 0);
 
-                if($tokenExpired==false) {
+                    if($tokenExpired==false) {
                                 
-                    $jwtSignatureValid = hash_hmac('sha256',"$tokenParts[0].$tokenParts[1]", getenv('JWT_KEY'),true);
-                    $jwtSignatureValid = base64_encode($jwtSignatureValid);
+                        $jwtSignatureValid = hash_hmac('sha256',"$tokenParts[0].$tokenParts[1]", getenv('JWT_KEY'),true);
+                        $jwtSignatureValid = base64_encode($jwtSignatureValid);
+                        
+                        $tokenSignature = $tokenParts[2];
 
-                    $tokenSignature = $tokenParts[2];
-
-                    /**
-                     * verifica signature do token
-                     */
-                    if($tokenSignature == $jwtSignatureValid) {
-                        return true;
+                        /**
+                         * verifica signature do token
+                         */
+                        if($tokenSignature == $jwtSignatureValid) {
+                           return 1;
+                        } else {
+                            return 3;
+                        }
+                    } else {
+                        return 2;
                     }
-                    return false;
+                } else {
+                    return 3;
                 }
-                return false;
+            } else {
+                return 4;
             }
-            return false;
+        } else {
+            return 5;
         }
-        return false;
     }
 
 }

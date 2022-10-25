@@ -30,36 +30,54 @@ class DenunciaController extends Controller
         if(isset($request->token)) {
             if(!empty($request->all())) {
 
-                $tokenParts = explode(".", $request->token);  
+                $tokenParts = explode(".", $request->token);
+            
                 $tokenHeader = base64_decode($tokenParts[0]);
-                $tokenPayload = base64_decode($tokenParts[1]);
                 $jwtHeader = json_decode($tokenHeader);
+                $tokenPayload = base64_decode($tokenParts[1]);
                 $jwtPayload = json_decode($tokenPayload);
 
-                $denuncia = new Denuncia;
-                $denuncia->idUsuario = $jwtPayload->id;
-                $denuncia->tipo = $request->tipo;
-                $denuncia->cor = $request->cor;
-                $denuncia->localizacao = $request->localizacao;
-                $denuncia->rua = $request->rua;
-                $denuncia->bairro = $request->bairro;
-                $denuncia->pontoDeReferencia = $request->pontoDeReferencia;
-                $denuncia->picture = $request->picture;
-                $denuncia->save();
+                $tokenValid = $this->validacaoJwt($request);
 
-                return response()->json([
-                    $denuncia,
-                    "message" => "denuncia record created"
-                ], 201);
+                if($tokenValid == 1) {
+
+                    $denuncia = new Denuncia;
+                    $denuncia->idUsuario = $jwtPayload->id;
+                    $denuncia->tipo = $request->tipo;
+                    $denuncia->cor = $request->cor;
+                    $denuncia->localizacao = $request->localizacao;
+                    $denuncia->rua = $request->rua;
+                    $denuncia->bairro = $request->bairro;
+                    $denuncia->pontoDeReferencia = $request->pontoDeReferencia;
+                    $denuncia->picture = $request->picture;
+                    $denuncia->save();
+
+                    return response()->json([
+                        $denuncia,
+                        "message" => "denuncia record created"
+                    ], 201);
+                } else if($tokenValid == 2) {
+                    return response()->json([
+                        "message" => "token has expired",
+                    ], 403);
+                } else if($tokenValid == 3) {
+                    return response()->json([
+                        "message" => "invalid token",
+                    ], 403);
+                } else if($tokenValid == 4){
+                    return response()->json([
+                        "message" => "invalid token structure"
+                    ], 403);
+                } else if($tokenValid == 5){
+                    return response()->json([
+                        "message" => "token does not exist"
+                    ], 403);
+                }
             } else {
                 return response()->json([
                     "message" => "internal servidor error"
                 ], 500);
             }
-        } else {
-            return response()->json([
-                "message" => "token doesn't exist"
-            ], 403);
         }
     }
 
@@ -80,24 +98,36 @@ class DenunciaController extends Controller
 
             $tokenValid = $this->validacaoJwt($request);
 
-            if($tokenValid == true) {
+            if($tokenValid == 1) {
             
-            if (Denuncia::where('idUsuario', $jwtPayload->id)->exists()) {
-                    
-                $denuncia = Denuncia::where('idUsuario', $jwtPayload->id)->get();
+                if (Denuncia::where('idUsuario', $jwtPayload->id)->exists()) {
+                        
+                    $denuncia = Denuncia::where('idUsuario', $jwtPayload->id)->get();
+                    return response()->json([
+                        $denuncia,
+                    ], 200);
+                } else {
+                    return response()->json([
+                    "message" => "denuncia not found",
+                    ], 404);
+                }
+            } else if($tokenValid == 2) {
                 return response()->json([
-                    $denuncia,
-                ], 200);
-            } else {
+                    "message" => "token has expired",
+                ], 403);
+            } else if($tokenValid == 3) {
                 return response()->json([
-                "message" => "denuncia not found"
-                ], 404);
+                    "message" => "invalid token",
+                ], 403);
+            } else if($tokenValid == 4){
+                return response()->json([
+                    "message" => "invalid token structure"
+                ], 403);
+            } else if($tokenValid == 5){
+                return response()->json([
+                    "message" => "token does not exist"
+                ], 403);
             }
-        } else {
-            return response()->json([
-            "message" => "access denied"
-            ], 403);
-        }
     }
 
     public function getAllDenuncias()
@@ -121,7 +151,7 @@ class DenunciaController extends Controller
 
         $tokenValid = $this->validacaoJwt($request);
             
-        if($tokenValid == true) {
+        if($tokenValid == 1) {
 
             if (Denuncia::where('id', $id)->exists()) {
 
@@ -153,9 +183,21 @@ class DenunciaController extends Controller
                     "message" => "denuncia not found"
                 ], 404);
             }
-        } else {
+        } else if($tokenValid == 2) {
             return response()->json([
-                "message" => "access denied"
+                "message" => "token has expired",
+            ], 403);
+        } else if($tokenValid == 3) {
+            return response()->json([
+                "message" => "invalid token",
+            ], 403);
+        } else if($tokenValid == 4){
+            return response()->json([
+                "message" => "invalid token structure"
+            ], 403);
+        } else if($tokenValid == 5){
+            return response()->json([
+                "message" => "token does not exist"
             ], 403);
         }
     }
@@ -174,7 +216,7 @@ class DenunciaController extends Controller
 
         $tokenValid = $this->validacaoJwt($request);
 
-        if($tokenValid == true) {
+        if($tokenValid == 1) {
 
             if(Denuncia::where('id', $id)->exists()) {
 
@@ -189,7 +231,7 @@ class DenunciaController extends Controller
                     ], 202);
                 } else {
                     return response()->json([
-                        "message" => "user does not have permission to modify this denuncia"
+                        "message" => "user does not have permission to delete this denuncia"
                     ], 403);
                 }
             } else {
@@ -197,9 +239,21 @@ class DenunciaController extends Controller
                 "message" => "denuncia not found"
                 ], 404);
             }
-        } else {
+        } else if($tokenValid == 2) {
             return response()->json([
-            "message" => "access denied"
+                "message" => "token has expired",
+            ], 403);
+        } else if($tokenValid == 3) {
+            return response()->json([
+                "message" => "invalid token",
+            ], 403);
+        } else if($tokenValid == 4){
+            return response()->json([
+                "message" => "invalid token structure"
+            ], 403);
+        } else if($tokenValid == 5){
+            return response()->json([
+                "message" => "token does not exist"
             ], 403);
         }
     }
@@ -227,28 +281,37 @@ class DenunciaController extends Controller
                 /**
                  * verifica o tempo de expiracao do token
                  */
-                $expiration = Carbon::createFromTimestamp(json_decode($tokenPayload)->exp);
-                $tokenExpired = (Carbon::now()->diffInSeconds($expiration, false) < 0);
+                if(!empty($jwtPayload->exp) && is_null($jwtPayload->id) == FALSE) {
+                    
+                    $expiration = Carbon::createFromTimestamp(json_decode($tokenPayload)->exp);
+                    $tokenExpired = (Carbon::now()->diffInSeconds($expiration, false) < 0);
 
-                if($tokenExpired==false) {
+                    if($tokenExpired==false) {
                                 
-                    $jwtSignatureValid = hash_hmac('sha256',"$tokenParts[0].$tokenParts[1]", getenv('JWT_KEY'),true);
-                    $jwtSignatureValid = base64_encode($jwtSignatureValid);
+                        $jwtSignatureValid = hash_hmac('sha256',"$tokenParts[0].$tokenParts[1]", getenv('JWT_KEY'),true);
+                        $jwtSignatureValid = base64_encode($jwtSignatureValid);
+                        
+                        $tokenSignature = $tokenParts[2];
 
-                    $tokenSignature = $tokenParts[2];
-
-                    /**
-                     * verifica signature do token
-                     */
-                    if($tokenSignature == $jwtSignatureValid) {
-                        return true;
+                        /**
+                         * verifica signature do token
+                         */
+                        if($tokenSignature == $jwtSignatureValid) {
+                           return 1;
+                        } else {
+                            return 3;
+                        }
+                    } else {
+                        return 2;
                     }
-                    return false;
+                } else {
+                    return 3;
                 }
-                return false;
+            } else {
+                return 4;
             }
-            return false;
+        } else {
+            return 5;
         }
-        return false;
     }
 }
