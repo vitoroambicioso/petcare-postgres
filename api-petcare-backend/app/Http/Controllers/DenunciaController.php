@@ -28,6 +28,7 @@ class DenunciaController extends Controller
     public function create(Request $request)
     {
         if(isset($request->token)) {
+            
             if(!empty($request->all())) {
 
                 $tokenParts = explode(".", $request->token);
@@ -39,44 +40,51 @@ class DenunciaController extends Controller
 
                 $tokenValid = $this->validacaoJwt($request);
 
-                if($tokenValid == 1) {
+                switch($tokenValid) {
 
-                    $denuncia = new Denuncia;
-                    $denuncia->idUsuario = $jwtPayload->id;
-                    $denuncia->tipo = $request->tipo;
-                    $denuncia->cor = $request->cor;
-                    $denuncia->localizacao = $request->localizacao;
-                    $denuncia->rua = $request->rua;
-                    $denuncia->bairro = $request->bairro;
-                    $denuncia->pontoDeReferencia = $request->pontoDeReferencia;
-                    $denuncia->picture = $request->picture;
-                    $denuncia->save();
+                    case 1:
 
-                    return response()->json([
-                        $denuncia,
-                        "message" => "denuncia record created"
-                    ], 201);
-                } else if($tokenValid == 2) {
-                    return response()->json([
-                        "message" => "token has expired",
-                    ], 403);
-                } else if($tokenValid == 3) {
-                    return response()->json([
-                        "message" => "invalid token",
-                    ], 403);
-                } else if($tokenValid == 4){
-                    return response()->json([
-                        "message" => "invalid token structure"
-                    ], 403);
-                } else if($tokenValid == 5){
-                    return response()->json([
-                        "message" => "token does not exist"
-                    ], 403);
+                        $denuncia = new Denuncia;
+                        $denuncia->idUsuario = $jwtPayload->id;
+                        $denuncia->tipo = $request->tipo;
+                        $denuncia->cor = $request->cor;
+                        $denuncia->localizacao = $request->localizacao;
+                        $denuncia->rua = $request->rua;
+                        $denuncia->bairro = $request->bairro;
+                        $denuncia->pontoDeReferencia = $request->pontoDeReferencia;
+                        $denuncia->picture = $request->picture;
+                        $denuncia->save();
+
+                        return response()->json([
+                            $denuncia,
+                            "message" => "denuncia record created"
+                        ], 201);
+                        break;
+                    case 2:
+                        return response()->json([
+                            "message" => "token has expired",
+                        ], 403);
+                        break;
+                    case 3:
+                        return response()->json([
+                            "message" => "invalid token",
+                        ], 403);
+                        break;
+                    case 4:
+                        return response()->json([
+                            "message" => "invalid token structure"
+                        ], 403);
+                        break;
+                    case 5:
+                        return response()->json([
+                            "message" => "token does not exist"
+                        ], 403);
+                        break;
                 }
             } else {
                 return response()->json([
-                    "message" => "internal servidor error"
-                ], 500);
+                    "message" => "bad request"
+                ], 400);
             }
         }
     }
@@ -89,6 +97,8 @@ class DenunciaController extends Controller
      */
     public function getDenuncia(Request $request)
     {
+        if(!empty($request->all())) {
+            
             $tokenParts = explode(".", $request->token);
             
             $tokenHeader = base64_decode($tokenParts[0]);
@@ -98,36 +108,48 @@ class DenunciaController extends Controller
 
             $tokenValid = $this->validacaoJwt($request);
 
-            if($tokenValid == 1) {
+            switch($tokenValid) {
+
+                case 1:
             
-                if (Denuncia::where('idUsuario', $jwtPayload->id)->exists()) {
-                        
-                    $denuncia = Denuncia::where('idUsuario', $jwtPayload->id)->get();
+                    if (Denuncia::where('idUsuario', $jwtPayload->id)->exists()) {
+                            
+                        $denuncia = Denuncia::where('idUsuario', $jwtPayload->id)->get();
+                        return response()->json([
+                            $denuncia,
+                        ], 200);
+                    } else {
+                        return response()->json([
+                        "message" => "denuncia not found",
+                        ], 404);
+                    }
+                    break;
+                case 2:
                     return response()->json([
-                        $denuncia,
-                    ], 200);
-                } else {
+                        "message" => "token has expired",
+                    ], 403);
+                    break;
+                case 3:
                     return response()->json([
-                    "message" => "denuncia not found",
-                    ], 404);
-                }
-            } else if($tokenValid == 2) {
-                return response()->json([
-                    "message" => "token has expired",
-                ], 403);
-            } else if($tokenValid == 3) {
-                return response()->json([
-                    "message" => "invalid token",
-                ], 403);
-            } else if($tokenValid == 4){
-                return response()->json([
-                    "message" => "invalid token structure"
-                ], 403);
-            } else if($tokenValid == 5){
-                return response()->json([
-                    "message" => "token does not exist"
-                ], 403);
+                        "message" => "invalid token",
+                    ], 403);
+                    break;
+                case 4:
+                    return response()->json([
+                        "message" => "invalid token structure"
+                    ], 403);
+                    break;
+                case 5:
+                    return response()->json([
+                        "message" => "token does not exist"
+                    ], 403);
+                    break;
             }
+        } else {
+            return response()->json([
+                "message" => "bad request"
+            ], 400);
+        }
     }
 
     public function getAllDenuncias()
@@ -145,60 +167,73 @@ class DenunciaController extends Controller
      */
     public function edit(Request $request, $id)
     {
-        $tokenParts = explode(".", $request->token);  
-        $tokenPayload = base64_decode($tokenParts[1]);
-        $jwtPayload = json_decode($tokenPayload);
+        if(!empty($request->all())) {
 
-        $tokenValid = $this->validacaoJwt($request);
+            $tokenParts = explode(".", $request->token);  
+            $tokenPayload = base64_decode($tokenParts[1]);
+            $jwtPayload = json_decode($tokenPayload);
+
+            $tokenValid = $this->validacaoJwt($request);
+                
+            switch($tokenValid) {
+
+                case 1:
+
+                    if (Denuncia::where('id', $id)->exists()) {
+
+                        $denuncia = Denuncia::find($id);
+
+                        if($jwtPayload->id == $denuncia->idUsuario) {
+
+                            $denuncia->tipo = is_null($request->tipo) ? $denuncia->tipo : $request->tipo;
+                            $denuncia->cor = is_null($request->cor) ? $denuncia->cor : $request->cor;
+                            $denuncia->localizacao = is_null($request->localizacao) ? $denuncia->localizacao : $request->localizacao;
+                            $denuncia->rua = is_null($request->rua) ? $denuncia->rua : $request->rua;
+                            $denuncia->bairro = is_null($request->bairro) ? $denuncia->bairro : $request->bairro;
+                            $denuncia->pontoDeReferencia = is_null($request->pontoDeReferencia) ? $denuncia->pontoDeReferencia : $request->pontoDeReferencia;
+                            $denuncia->picture = is_null($request->picture) ? $denuncia->picture : $request->picture;
+                            $denuncia->save();
             
-        if($tokenValid == 1) {
-
-            if (Denuncia::where('id', $id)->exists()) {
-
-                $denuncia = Denuncia::find($id);
-
-                if($jwtPayload->id == $denuncia->idUsuario) {
-
-                    $denuncia->tipo = is_null($request->tipo) ? $denuncia->tipo : $request->tipo;
-                    $denuncia->cor = is_null($request->cor) ? $denuncia->cor : $request->cor;
-                    $denuncia->localizacao = is_null($request->localizacao) ? $denuncia->localizacao : $request->localizacao;
-                    $denuncia->rua = is_null($request->rua) ? $denuncia->rua : $request->rua;
-                    $denuncia->bairro = is_null($request->bairro) ? $denuncia->bairro : $request->bairro;
-                    $denuncia->pontoDeReferencia = is_null($request->pontoDeReferencia) ? $denuncia->pontoDeReferencia : $request->pontoDeReferencia;
-                    $denuncia->picture = is_null($request->picture) ? $denuncia->picture : $request->picture;
-                    $denuncia->save();
-    
+                            return response()->json([
+                                $denuncia,
+                                "message" => "records updated successfully"
+                            ], 200);
+                        } else {
+                            return response()->json([
+                                "message" => "user does not have permission to modify this denuncia"
+                            ], 403);
+                        }
+                    } else {
+                        return response()->json([
+                            "message" => "denuncia not found"
+                        ], 404);
+                    }
+                    break;
+                case 2:
                     return response()->json([
-                        $denuncia,
-                        "message" => "records updated successfully"
-                    ], 200);
-                } else {
-                    return response()->json([
-                        "message" => "user does not have permission to modify this denuncia"
+                        "message" => "token has expired",
                     ], 403);
-                }
+                    break;
+                case 3:
+                    return response()->json([
+                        "message" => "invalid token",
+                    ], 403);
+                    break;
+                case 4:
+                    return response()->json([
+                        "message" => "invalid token structure"
+                    ], 403);
+                    break;
+                case 5:
+                    return response()->json([
+                        "message" => "token does not exist"
+                    ], 403);
+                    break;
             }
-            else {
-                return response()->json([
-                    "message" => "denuncia not found"
-                ], 404);
-            }
-        } else if($tokenValid == 2) {
+        } else {
             return response()->json([
-                "message" => "token has expired",
-            ], 403);
-        } else if($tokenValid == 3) {
-            return response()->json([
-                "message" => "invalid token",
-            ], 403);
-        } else if($tokenValid == 4){
-            return response()->json([
-                "message" => "invalid token structure"
-            ], 403);
-        } else if($tokenValid == 5){
-            return response()->json([
-                "message" => "token does not exist"
-            ], 403);
+                "message" => "bad request"
+            ], 400);
         }
     }
 
@@ -210,51 +245,65 @@ class DenunciaController extends Controller
      */
     public function delete(Request $request, $id)
     {
-        $tokenParts = explode(".", $request->token);  
-        $tokenPayload = base64_decode($tokenParts[1]);
-        $jwtPayload = json_decode($tokenPayload);
+        if(!empty($request->all())) {
 
-        $tokenValid = $this->validacaoJwt($request);
+            $tokenParts = explode(".", $request->token);  
+            $tokenPayload = base64_decode($tokenParts[1]);
+            $jwtPayload = json_decode($tokenPayload);
 
-        if($tokenValid == 1) {
+            $tokenValid = $this->validacaoJwt($request);
 
-            if(Denuncia::where('id', $id)->exists()) {
+            switch($tokenValid) {
 
-                $denuncia = Denuncia::find($id);
+                case 1:
+
+                    if(Denuncia::where('id', $id)->exists()) {
+
+                        $denuncia = Denuncia::find($id);
+                        
+                        if($jwtPayload->id == $denuncia->idUsuario) {
+                            $denuncia->delete();
                 
-                if($jwtPayload->id == $denuncia->idUsuario) {
-                    $denuncia->delete();
-        
+                            return response()->json([
+                            $denuncia,
+                            "message" => "denuncia records deleted"
+                            ], 202);
+                        } else {
+                            return response()->json([
+                                "message" => "user does not have permission to delete this denuncia"
+                            ], 403);
+                        }
+                    } else {
+                        return response()->json([
+                        "message" => "denuncia not found"
+                        ], 404);
+                    }
+                    break;
+                case 2:
                     return response()->json([
-                    $denuncia,
-                    "message" => "denuncia records deleted"
-                    ], 202);
-                } else {
-                    return response()->json([
-                        "message" => "user does not have permission to delete this denuncia"
+                        "message" => "token has expired",
                     ], 403);
-                }
-            } else {
-                return response()->json([
-                "message" => "denuncia not found"
-                ], 404);
+                    break;
+                case 3:
+                    return response()->json([
+                        "message" => "invalid token",
+                    ], 403);
+                    break;
+                case 4:
+                    return response()->json([
+                        "message" => "invalid token structure"
+                    ], 403);
+                    break;
+                case 5:
+                    return response()->json([
+                        "message" => "token does not exist"
+                    ], 403);
+                    break;
             }
-        } else if($tokenValid == 2) {
+        } else {
             return response()->json([
-                "message" => "token has expired",
-            ], 403);
-        } else if($tokenValid == 3) {
-            return response()->json([
-                "message" => "invalid token",
-            ], 403);
-        } else if($tokenValid == 4){
-            return response()->json([
-                "message" => "invalid token structure"
-            ], 403);
-        } else if($tokenValid == 5){
-            return response()->json([
-                "message" => "token does not exist"
-            ], 403);
+                "message" => "bad request"
+            ], 400);
         }
     }
 

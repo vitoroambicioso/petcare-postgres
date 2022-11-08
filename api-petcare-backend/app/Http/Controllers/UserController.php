@@ -40,47 +40,52 @@ class UserController extends Controller
     {
         if(!empty($request->all())) {
             
-            $user = new User;
-            $user->name = $request->name;
-            $user->email = $request->email;
-            $user->password = bcrypt($request->password);
-            $user->save();
+            if(User::where('email', $request->email)->exists() == FALSE) {
+                $user = new User;
+                $user->name = $request->name;
+                $user->email = $request->email;
+                $user->password = bcrypt($request->password);
+                $user->save();
 
-            /**
-             * codificacao em jwt
-             */
-            $timeNow = time();
-            $expirationTime = $timeNow + 60*60;
+                /**
+                 * codificacao em jwt
+                 */
+                $timeNow = time();
+                $expirationTime = $timeNow + 60*60;
 
-            $jwtHeader = [
-                'alg' => 'HS256',
-                'typ' => 'JWT'
-            ];
-            $jwtPayload = [
-                'exp' => $expirationTime,
-                'iss' => 'petcarebackend',
-                'id' => Auth::user()->id
-            ];
+                $jwtHeader = [
+                    'alg' => 'HS256',
+                    'typ' => 'JWT'
+                ];
+                $jwtPayload = [
+                    'exp' => $expirationTime,
+                    'iss' => 'petcarebackend',
+                    'id' => Auth::user()->id
+                ];
 
-            $jwtHeader = json_encode($jwtHeader);
-            $jwtHeader = base64_encode($jwtHeader);
+                $jwtHeader = json_encode($jwtHeader);
+                $jwtHeader = base64_encode($jwtHeader);
 
-            $jwtPayload = json_encode($jwtPayload);
-            $jwtPayload = base64_encode($jwtPayload);
+                $jwtPayload = json_encode($jwtPayload);
+                $jwtPayload = base64_encode($jwtPayload);
 
-            $jwtSignature = hash_hmac('sha256',"$jwtHeader.$jwtPayload", getenv('JWT_KEY'),true);
-            $jwtSignature = base64_encode($jwtSignature);
+                $jwtSignature = hash_hmac('sha256',"$jwtHeader.$jwtPayload", getenv('JWT_KEY'),true);
+                $jwtSignature = base64_encode($jwtSignature);
 
-            return response()->json([
-                "token" => "$jwtHeader.$jwtPayload.$jwtSignature",
-                "message" => "user record created"
-            ], 201);
+                return response()->json([
+                    "token" => "$jwtHeader.$jwtPayload.$jwtSignature",
+                    "message" => "user record created"
+                ], 201);
+            } else {
+                return response()->json([
+                    "message" => "user already exists"
+                ], 403);
+            }
         } else {
-            return response()->json([
-                "message" => "internal servidor error"
-            ], 500);
+                return response()->json([
+                    "message" => "bad request"
+                ], 400);
         }
-
     }
 
     /**
@@ -91,50 +96,63 @@ class UserController extends Controller
      */
     public function getUser(Request $request, $id)
     {
-        $tokenParts = explode(".", $request->token);  
-        $tokenPayload = base64_decode($tokenParts[1]);
-        $jwtPayload = json_decode($tokenPayload);
+        if(!empty($request->all())) {
 
-        $tokenValid = $this->validacaoJwt($request);
+            $tokenParts = explode(".", $request->token);  
+            $tokenPayload = base64_decode($tokenParts[1]);
+            $jwtPayload = json_decode($tokenPayload);
+
+            $tokenValid = $this->validacaoJwt($request);
             
-        if($tokenValid == 1) {
+            switch($tokenValid) {
 
-            /**
-            * verifica id do token
-             */
-            if($jwtPayload->id == $id) {
-                if (User::where('id', $id)->exists()) {
-                    $user = User::find($id);
+                case 1:
+                    /**
+                    * verifica id do token
+                    */
+                    if($jwtPayload->id == $id) {
+                        if (User::where('id', $id)->exists()) {
+                            $user = User::find($id);
 
+                            return response()->json([
+                                "user" => $user,
+                            ], 200);
+                        } else {
+                            return response()->json([
+                                "message" => "user not found"
+                            ], 404);
+                        }
+                    } else {
+                        return response()->json([
+                            "message" => "id not found"
+                        ], 404);
+                    }
+                    break;
+                case 2:
                     return response()->json([
-                        "user" => $user,
-                    ], 200);
-                } else {
+                        "message" => "token has expired",
+                    ], 403);
+                    break;
+                case 3:
                     return response()->json([
-                        "message" => "user not found"
-                    ], 404);
-                }
-            } else {
-                return response()->json([
-                    "message" => "id not found"
-                ], 404);
+                        "message" => "invalid token",
+                    ], 403);
+                    break;
+                case 4:
+                    return response()->json([
+                        "message" => "invalid token structure"
+                    ], 403);
+                    break;
+                case 5:
+                    return response()->json([
+                        "message" => "token does not exist"
+                    ], 403);
+                    break;
             }
-        } else if($tokenValid == 2) {
+        } else {
             return response()->json([
-                "message" => "token has expired",
-            ], 403);
-        } else if($tokenValid == 3) {
-            return response()->json([
-                "message" => "invalid token",
-            ], 403);
-        } else if($tokenValid == 4){
-            return response()->json([
-                "message" => "invalid token structure"
-            ], 403);
-        } else if($tokenValid == 5){
-            return response()->json([
-                "message" => "token does not exist"
-            ], 403);
+                "message" => "bad request"
+            ], 400);
         }
     }
 
@@ -154,46 +172,60 @@ class UserController extends Controller
      */
     public function edit(Request $request, $id)
     {
-        $tokenParts = explode(".", $request->token);  
-        $tokenPayload = base64_decode($tokenParts[1]);
-        $jwtPayload = json_decode($tokenPayload);
 
-        $tokenValid = $this->validacaoJwt($request);
-            
-        if($tokenValid == 1) {
+        if(!empty($request->all())) {
+
+            $tokenParts = explode(".", $request->token);  
+            $tokenPayload = base64_decode($tokenParts[1]);
+            $jwtPayload = json_decode($tokenPayload);
+
+            $tokenValid = $this->validacaoJwt($request);
+                
+            switch($tokenValid) {
+                    
+                case 1:
+                    if($jwtPayload->id == $id) {
+
+                        $user = User::find($id);
+                        $user->name = is_null($request->name) ? $User->name : $request->name;
+                        $user->password = bcrypt(is_null($request->password) ? $User->password : $request->password);
+                        $user->update();
                                 
-            if($jwtPayload->id == $id) {
-
-                $user = User::find($id);
-                $user->name = is_null($request->name) ? $User->name : $request->name;
-                $user->password = bcrypt(is_null($request->password) ? $User->password : $request->password);
-                $user->update();
-                        
-                return response()->json([
-                    "token" => "$request->token",
-                    "message" => "records updated successfully"
-                ], 200);
-            } else {
-                return response()->json([
-                    "message" => "id not found"
-                ], 403);
+                        return response()->json([
+                            "token" => "$request->token",
+                            "message" => "records updated successfully"
+                        ], 200);
+                    } else {
+                        return response()->json([
+                            "message" => "id not found"
+                        ], 403);
+                    }
+                    break;
+                case 2:
+                    return response()->json([
+                        "message" => "token has expired",
+                    ], 403);
+                    break;
+                case 3:
+                    return response()->json([
+                        "message" => "invalid token",
+                    ], 403);
+                    break;
+                case 4:
+                    return response()->json([
+                        "message" => "invalid token structure"
+                    ], 403);
+                    break;
+                case 5:
+                    return response()->json([
+                        "message" => "token does not exist"
+                    ], 403);
+                    break;
             }
-        } else if($tokenValid == 2) {
+        } else {
             return response()->json([
-                "message" => "token has expired",
-            ], 403);
-        } else if($tokenValid == 3) {
-            return response()->json([
-                "message" => "invalid token",
-            ], 403);
-        } else if($tokenValid == 4){
-            return response()->json([
-                "message" => "invalid token structure"
-            ], 403);
-        } else if($tokenValid == 5){
-            return response()->json([
-                "message" => "token does not exist"
-            ], 403);
+                "message" => "bad request"
+            ], 400);
         }
     }
     
@@ -206,88 +238,108 @@ class UserController extends Controller
      */
     public function delete(Request $request, $id)
     {
-        $tokenParts = explode(".", $request->token);  
-        $tokenPayload = base64_decode($tokenParts[1]);
-        $jwtPayload = json_decode($tokenPayload);
 
-        $tokenValid = $this->validacaoJwt($request);
+        if(!empty($request->all())) {
             
-        if($tokenValid == 1) {
+            $tokenParts = explode(".", $request->token);  
+            $tokenPayload = base64_decode($tokenParts[1]);
+            $jwtPayload = json_decode($tokenPayload);
+
+            $tokenValid = $this->validacaoJwt($request);
+                
+            switch($tokenValid) {
                         
-            if($jwtPayload->id == $id) {
-                $user = User::find($id);
-                $user->delete();
-                        
-                return response()->json([
-                    "token" => $request->token,
-                    "message" => "records deleted"
-                ], 202);
-            } else {
-                return response()->json([
-                    "message" => "id not found"
-                ], 403);
+                case 1:
+                    if($jwtPayload->id == $id) {
+                        $user = User::find($id);
+                        $user->delete();
+                                
+                        return response()->json([
+                            "token" => $request->token,
+                            "message" => "records deleted"
+                        ], 202);
+                    } else {
+                        return response()->json([
+                            "message" => "id not found"
+                        ], 403);
+                    }
+                    break;
+                case 2:
+                    return response()->json([
+                        "message" => "token has expired",
+                    ], 403);
+                    break;
+                case 3:
+                    return response()->json([
+                        "message" => "invalid token",
+                    ], 403);
+                    break;
+                case 4:
+                    return response()->json([
+                        "message" => "invalid token structure"
+                    ], 403);
+                    break;
+                case 5:
+                    return response()->json([
+                        "message" => "token does not exist"
+                    ], 403);
+                    break;
             }
-        } else if($tokenValid == 2) {
+        } else {
             return response()->json([
-                "message" => "token has expired",
-            ], 403);
-        } else if($tokenValid == 3) {
-            return response()->json([
-                "message" => "invalid token",
-            ], 403);
-        } else if($tokenValid == 4){
-            return response()->json([
-                "message" => "invalid token structure"
-            ], 403);
-        } else if($tokenValid == 5){
-            return response()->json([
-                "message" => "token does not exist"
-            ], 403);
+                "message" => "bad request"
+            ], 400);
         }
     }
     
 
     public function login(Request $request) {
         
-        $request->validate([
-            'email' => 'required',
-            'password' => 'required'
-        ]);
+        if(!empty($request->all())) {
+            $request->validate([
+                'email' => 'required',
+                'password' => 'required'
+            ]);
 
-   
-        $credentials = $request->only('email', 'password');
-        if (Auth::attempt($credentials)) {
+    
+            $credentials = $request->only('email', 'password');
+            if (Auth::attempt($credentials)) {
 
-            $timeNow = time();
-            $expirationTime = $timeNow + 60;
+                $timeNow = time();
+                $expirationTime = $timeNow + 60*60;
 
-            $jwtHeader = [
-                'alg' => 'HS256',
-                'typ' => 'JWT'
-            ];
-            $jwtPayload = [
-                'exp' => $expirationTime,
-                'iss' => 'petcarebackend',
-                'id' => Auth::user()->id
-            ];
+                $jwtHeader = [
+                    'alg' => 'HS256',
+                    'typ' => 'JWT'
+                ];
+                $jwtPayload = [
+                    'exp' => $expirationTime,
+                    'iss' => 'petcarebackend',
+                    'id' => Auth::user()->id
+                ];
 
-            $jwtHeader = json_encode($jwtHeader);
-            $jwtHeader = base64_encode($jwtHeader);
+                $jwtHeader = json_encode($jwtHeader);
+                $jwtHeader = base64_encode($jwtHeader);
 
-            $jwtPayload = json_encode($jwtPayload);
-            $jwtPayload = base64_encode($jwtPayload);
+                $jwtPayload = json_encode($jwtPayload);
+                $jwtPayload = base64_encode($jwtPayload);
 
-            $jwtSignature = hash_hmac('sha256',"$jwtHeader.$jwtPayload", getenv('JWT_KEY'),true);
-            $jwtSignature = base64_encode($jwtSignature);
+                $jwtSignature = hash_hmac('sha256',"$jwtHeader.$jwtPayload", getenv('JWT_KEY'),true);
+                $jwtSignature = base64_encode($jwtSignature);
 
-            return response()->json([
-                "token" => "$jwtHeader.$jwtPayload.$jwtSignature",
-                "message" => "successfully logged in"
-            ], 200);
+                return response()->json([
+                    "token" => "$jwtHeader.$jwtPayload.$jwtSignature",
+                    "message" => "successfully logged in"
+                ], 200);
+            } else {
+                return response()->json([
+                    "message" => "login attempt failed"
+                ], 404);
+            }
         } else {
             return response()->json([
-                "message" => "login attempt failed"
-            ], 404);
+                "message" => "bad request"
+            ], 400);
         }
     }
     
